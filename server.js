@@ -1,16 +1,17 @@
 import express from "express";
 import bodyParser from "body-parser";
-import cors from "cors";
 import crypto from "crypto";
+import cors from "cors";
 
-const app = express();          // only declare once
+const app = express();
 app.use(bodyParser.json());
-app.use(cors());                // enable CORS
+app.use(cors()); // Allow requests from your frontend
 
 // Load secrets from environment variables
 const MERCHANT_ID = process.env.WXP_MERCHANT_ID;
 const SECRET_KEY = process.env.WXP_SECRET_KEY;
-// Webxpay live public key (replace with your actual key)
+
+// Webxpay public key
 const PUBLIC_KEY = `
 -----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDla3BZjh19LvuG+qYOF3gpcqCM
@@ -20,13 +21,14 @@ sZx1THY1BzCnnBdHPwIDAQAB
 -----END PUBLIC KEY-----
 `;
 
-function encryptWithPublicKey(plaintext) {
+// Function to encrypt only the secret key
+function encryptSecretKey(secret) {
   return crypto.publicEncrypt(
     {
       key: PUBLIC_KEY,
-      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
     },
-    Buffer.from(plaintext)
+    Buffer.from(secret)
   ).toString("base64");
 }
 
@@ -49,30 +51,26 @@ app.post("/create-payment", (req, res) => {
       return res.status(400).send("Missing mandatory fields");
     }
 
-    // Prepare payload for Webxpay
-    const payload = {
-      secret_key: SECRET_KEY,
-      merchant_id: MERCHANT_ID,
-      process_currency: currency,
-      cms: "Node.js",
-      order_id,
-      amount,
-      email,
-      first_name,
-      last_name,
-      contact_number,
-      address_line_one
-    };
+    // Encrypt only the secret key
+    const encryptedSecret = encryptSecretKey(SECRET_KEY);
 
-    const plaintext = JSON.stringify(payload);
-    const encrypted = encryptWithPublicKey(plaintext);
-
-    // Return HTML form to auto-submit to Webxpay
+    // Return HTML form for Webxpay
     const htmlForm = `
       <form id="redirectForm" action="https://webxpay.com/index.php?route=checkout/billing" method="POST">
-        <input type="hidden" name="payment" value="${encrypted}">
+        <input type="hidden" name="merchant_id" value="${MERCHANT_ID}">
+        <input type="hidden" name="secret_key" value="${encryptedSecret}">
+        <input type="hidden" name="order_id" value="${order_id}">
+        <input type="hidden" name="amount" value="${amount}">
+        <input type="hidden" name="currency" value="${currency}">
+        <input type="hidden" name="email" value="${email}">
+        <input type="hidden" name="first_name" value="${first_name}">
+        <input type="hidden" name="last_name" value="${last_name}">
+        <input type="hidden" name="contact_number" value="${contact_number}">
+        <input type="hidden" name="address_line_one" value="${address_line_one}">
       </form>
-      <script>document.getElementById('redirectForm').submit();</script>
+      <script>
+        document.getElementById('redirectForm').submit();
+      </script>
     `;
 
     res.setHeader("Content-Type", "text/html");
@@ -84,6 +82,5 @@ app.post("/create-payment", (req, res) => {
   }
 });
 
-// Start server
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
