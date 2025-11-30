@@ -59,7 +59,7 @@ app.post("/create-payment", (req, res) => {
 
     // Generate HTML form for redirect
     const htmlForm = `
-      <form id="redirectForm" action="https://webxpay.com/index.php?route=checkout/billing" method="POST">
+      <form id="redirectForm" action="https://stagingxpay.info/index.php?route=checkout/billing" method="POST">
         <input type="hidden" name="payment" value="${encrypted}">
         <input type="hidden" name="first_name" value="${first_name}">
         <input type="hidden" name="last_name" value="${last_name}">
