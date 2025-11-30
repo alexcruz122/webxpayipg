@@ -10,7 +10,7 @@ app.use(cors());
 
 // STAGING Credentials
 const MERCHANT_ID = "628246969186";
-const SECRET_KEY = "bd5dad56-0dbe-45c7-a21c-2aa42cc58206";
+const SECRET_KEY = "ba43d0a7-5a97-4b65-8d0c-485734c4f07e";
 
 const PUBLIC_KEY = `
 -----BEGIN PUBLIC KEY-----
