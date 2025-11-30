@@ -1,16 +1,17 @@
 import express from "express";
 import bodyParser from "body-parser";
-import cors from "cors";
 import crypto from "crypto";
+import cors from "cors";
 
 const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 
+// Load secrets from environment variables
 const MERCHANT_ID = process.env.WXP_MERCHANT_ID;
 const SECRET_KEY = process.env.WXP_SECRET_KEY;
 
-// Webxpay public key (from Webxpay Dashboard)
+// Webxpay public key
 const PUBLIC_KEY = `
 -----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDla3BZjh19LvuG+qYOF3gpcqCM
@@ -20,44 +21,54 @@ sZx1THY1BzCnnBdHPwIDAQAB
 -----END PUBLIC KEY-----
 `;
 
+// Only include mandatory fields for encryption
 function encryptPayload(payloadObj) {
-  // Convert object to JSON and encrypt using Webxpay public key
-  const plaintext = JSON.stringify(payloadObj);
-  return crypto.publicEncrypt(
-    { key: PUBLIC_KEY, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING },
-    Buffer.from(plaintext)
-  ).toString("base64");
+  try {
+    const plaintext = JSON.stringify(payloadObj);
+    return crypto.publicEncrypt(
+      { key: PUBLIC_KEY, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING },
+      Buffer.from(plaintext)
+    ).toString("base64");
+  } catch (err) {
+    console.error("RSA encryption error:", err);
+    throw err;
+  }
 }
 
 app.post("/create-payment", (req, res) => {
-  const { amount, order_id, email, first_name, last_name, contact_number } = req.body;
+  try {
+    const { order_id, amount, currency } = req.body;
 
-  if (!amount || !order_id) return res.status(400).send("Missing amount or order_id");
+    if (!order_id || !amount || !currency) {
+      return res.status(400).send("Missing mandatory fields");
+    }
 
-  // Payload exactly as Webxpay requires
-  const payload = {
-    merchant_id: MERCHANT_ID,
-    secret_key: SECRET_KEY,
-    process_currency: "LKR",
-    order_id,
-    amount,
-    email: email || "",
-    first_name: first_name || "",
-    last_name: last_name || "",
-    contact_number: contact_number || ""
-  };
+    // Encrypt only essential fields to avoid RSA size errors
+    const payload = {
+      merchant_id: MERCHANT_ID,
+      secret_key: SECRET_KEY,
+      process_currency: currency,
+      order_id,
+      amount
+    };
 
-  const encryptedPayment = encryptPayload(payload);
+    const encrypted = encryptPayload(payload);
 
-  const htmlForm = `
-    <form id="redirectForm" action="https://webxpay.com/index.php?route=checkout/billing" method="POST">
-      <input type="hidden" name="payment" value="${encryptedPayment}">
-    </form>
-    <script>document.getElementById('redirectForm').submit();</script>
-  `;
+    // Return HTML form
+    const htmlForm = `
+      <form id="redirectForm" action="https://webxpay.com/index.php?route=checkout/billing" method="POST">
+        <input type="hidden" name="payment" value="${encrypted}">
+      </form>
+      <script>document.getElementById('redirectForm').submit();</script>
+    `;
 
-  res.setHeader("Content-Type", "text/html");
-  res.send(htmlForm);
+    res.setHeader("Content-Type", "text/html");
+    res.send(htmlForm);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
 });
 
 const PORT = process.env.PORT || 10000;
