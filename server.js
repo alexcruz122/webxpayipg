@@ -1,9 +1,11 @@
 import express from "express";
-import cors from "cors";
 import bodyParser from "body-parser";
+import cors from "cors";
 import crypto from "crypto";
 
 const app = express();
+
+// Enable CORS for all origins (so frontend can call backend)
 app.use(cors());
 app.use(bodyParser.json());
 
@@ -35,24 +37,23 @@ app.post("/create-payment", (req, res) => {
   try {
     const { order_id, amount, currency } = req.body;
 
-    // Mandatory fields check
     if (!order_id || !amount || !currency) {
-      return res.status(400).send("Missing mandatory fields");
+      return res.status(400).send("Missing mandatory fields: order_id, amount, or currency");
     }
 
-    // Minimal payload to avoid RSA size issue
+    // Minimal payload to avoid RSA size issues
     const payload = {
       secret_key: SECRET_KEY,
       merchant_id: MERCHANT_ID,
       order_id,
       amount,
-      process_currency: currency
+      currency
     };
 
     const plaintext = JSON.stringify(payload);
     const encrypted = encryptWithPublicKey(plaintext);
 
-    // Return HTML form to auto-submit to Webxpay
+    // Return auto-submit HTML form to Webxpay
     const htmlForm = `
       <form id="redirectForm" action="https://webxpay.com/index.php?route=checkout/billing" method="POST">
         <input type="hidden" name="payment" value="${encrypted}">
@@ -69,6 +70,8 @@ app.post("/create-payment", (req, res) => {
   }
 });
 
-// Start server
+// Health check endpoint
+app.get("/healthz", (req, res) => res.send("OK"));
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
