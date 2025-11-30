@@ -38,7 +38,7 @@ app.post("/create-payment", (req, res) => {
 
     // WebXPay staging form
     const htmlForm = `
-      <form id="wpx_redirect" action="https://staging.webxpay.com/index.php?route=checkout/billing" method="POST">
+      <form id="wpx_redirect" action="https://stagingxpay.info/index.php?route=checkout/billing" method="POST">
         <input type="hidden" name="merchant_id" value="${MERCHANT_ID}">
         <input type="hidden" name="order_id" value="${order_id}">
         <input type="hidden" name="amount" value="${formattedAmount}">
