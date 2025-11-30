@@ -1,13 +1,16 @@
-const express = require("express");
-const cors = require("cors");
-const bodyParser = require("body-parser");
-const forge = require("node-forge");
+import express from "express";
+import bodyParser from "body-parser";
+import crypto from "crypto";
 
 const app = express();
-app.use(cors());
 app.use(bodyParser.json());
 
-const WEBXPAY_PUBLIC_KEY = `
+// Load secrets from environment variables
+const MERCHANT_ID = process.env.WXP_MERCHANT_ID;
+const SECRET_KEY = process.env.WXP_SECRET_KEY;
+
+// Webxpay live public key (replace with your actual key)
+const PUBLIC_KEY = `
 -----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDla3BZjh19LvuG+qYOF3gpcqCM
 swXfkkNJ2zwxyenNn5hGgfN0cu3dXl9jg0gkUM/p9tNCQ6k9ULLm33SGi8Vo15k4
@@ -16,66 +19,70 @@ sZx1THY1BzCnnBdHPwIDAQAB
 -----END PUBLIC KEY-----
 `;
 
-app.post("/create-payment", async (req, res) => {
-    try {
-        const {
-            order_id,
-            amount,
-            first_name,
-            last_name,
-            email,
-            contact_number,
-            address_one,
-            address_two,
-            city,
-            state,
-            postal_code,
-            country
-        } = req.body;
+function encryptWithPublicKey(plaintext) {
+  return crypto.publicEncrypt(
+    {
+      key: PUBLIC_KEY,
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING
+    },
+    Buffer.from(plaintext)
+  ).toString("base64");
+}
 
-        const plaintext = `${order_id}|${amount}`;
+app.post("/create-payment", (req, res) => {
+  try {
+    const {
+      order_id,
+      amount,
+      currency,
+      email,
+      first_name,
+      last_name,
+      contact_number,
+      address_line_one,
+    } = req.body;
 
-        const publicKey = forge.pki.publicKeyFromPem(WEBXPAY_PUBLIC_KEY);
-        const encrypted = publicKey.encrypt(plaintext, "RSAES-PKCS1-V1_5");
-        const payment = Buffer.from(encrypted, "binary").toString("base64");
-
-        const redirectForm = `
-            <form id="payform" action="https://webxpay.com/index.php?route=checkout/billing" method="POST">
-                <input type="hidden" name="first_name" value="${first_name}">
-                <input type="hidden" name="last_name" value="${last_name}">
-                <input type="hidden" name="email" value="${email}">
-                <input type="hidden" name="contact_number" value="${contact_number}">
-                <input type="hidden" name="address_line_one" value="${address_one}">
-                <input type="hidden" name="address_line_two" value="${address_two}">
-                <input type="hidden" name="city" value="${city}">
-                <input type="hidden" name="state" value="${state}">
-                <input type="hidden" name="postal_code" value="${postal_code}">
-                <input type="hidden" name="country" value="${country}">
-                <input type="hidden" name="process_currency" value="LKR">
-                
-                <input type="hidden" name="custom_fields" value="">
-                <input type="hidden" name="enc_method" value="JCs3J+6oSz4V0LgE0zi/Bg==">
-                <input type="hidden" name="secret_key" value="630be963-59e2-447a-8f3b-93b3d7a3bf25">
-
-                <input type="hidden" name="payment" value="${payment}">
-            </form>
-
-            <script>
-                document.getElementById('payform').submit();
-            </script>
-        `;
-
-        res.status(200).send(redirectForm);
-
-    } catch (err) {
-        console.error("Backend error:", err);
-        res.status(500).json({ error: err.toString() });
+    // Mandatory field check
+    const mandatoryFields = [order_id, amount, currency, email, first_name, last_name, contact_number, address_line_one];
+    if (mandatoryFields.some(f => !f)) {
+      return res.status(400).send("Missing mandatory fields");
     }
+
+    // Prepare payload for Webxpay
+    const payload = {
+      secret_key: SECRET_KEY,
+      merchant_id: MERCHANT_ID,
+      process_currency: currency,
+      cms: "Node.js",
+      order_id,
+      amount,
+      email,
+      first_name,
+      last_name,
+      contact_number,
+      address_line_one
+    };
+
+    const plaintext = JSON.stringify(payload);
+    const encrypted = encryptWithPublicKey(plaintext);
+
+    // Return HTML form to auto-submit to Webxpay
+    const htmlForm = `
+      <form id="redirectForm" action="https://webxpay.com/index.php?route=checkout/billing" method="POST">
+        <input type="hidden" name="payment" value="${encrypted}">
+      </form>
+      <script>document.getElementById('redirectForm').submit();</script>
+    `;
+
+    res.setHeader("Content-Type", "text/html");
+    res.send(htmlForm);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error: " + err.message);
+  }
 });
 
-app.get("/", (req, res) => {
-    res.json({ message: "WebXPay Node Backend Running" });
-});
-
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log("Server running on port " + port));
+// Start server
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
