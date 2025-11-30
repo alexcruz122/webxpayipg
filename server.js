@@ -1,14 +1,15 @@
 import express from "express";
 import bodyParser from "body-parser";
+import cors from "cors";
 import crypto from "crypto";
 
-const app = express();
+const app = express();          // only declare once
 app.use(bodyParser.json());
+app.use(cors());                // enable CORS
 
 // Load secrets from environment variables
 const MERCHANT_ID = process.env.WXP_MERCHANT_ID;
 const SECRET_KEY = process.env.WXP_SECRET_KEY;
-
 // Webxpay live public key (replace with your actual key)
 const PUBLIC_KEY = `
 -----BEGIN PUBLIC KEY-----
