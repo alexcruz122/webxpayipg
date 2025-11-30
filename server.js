@@ -1,19 +1,35 @@
 import express from "express";
-import cors from "cors";
 import bodyParser from "body-parser";
+import cors from "cors";
 import crypto from "crypto";
 
 const app = express();
-app.use(cors());
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.use(cors());
 
-const MERCHANT_ID = process.env.WXP_MERCHANT_ID;
-const SECRET_KEY = process.env.WXP_SECRET_KEY;
+// STAGING Credentials
+const MERCHANT_ID = "628246969186";
+const SECRET_KEY = "bd5dad56-0dbe-45c7-a21c-2aa42cc58206";
 
-// Create signature (HMAC-SHA256)
-function generateSignature(order_id, amount) {
-  const data = MERCHANT_ID + order_id + amount;
-  return crypto.createHmac("sha256", SECRET_KEY).update(data).digest("hex");
+const PUBLIC_KEY = `
+-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCyyQu5ZankdrZoeVDWoeYy5Sdj
+6LTKVDQqLYMFb2jP5+KOD4zkORh9N0S9gkc2emjDK5qNLMo7NXP/gjsGzArh3M28
+7hSBG757C2eFd7fxkPYBqB7aQB60ISqQ1fi8DyVn15fNwXRsU34L83gD3UwdJcaV
+v/4NWsY+ZMvczkz+fwIDAQAB
+-----END PUBLIC KEY-----
+`;
+
+// Encrypt order_id|amount using RSA PKCS#1 v1.5
+function encryptPayment(plain) {
+  return crypto.publicEncrypt(
+    {
+      key: PUBLIC_KEY,
+      padding: crypto.constants.RSA_PKCS1_PADDING,
+    },
+    Buffer.from(plain)
+  ).toString("base64");
 }
 
 app.post("/create-payment", (req, res) => {
@@ -21,48 +37,49 @@ app.post("/create-payment", (req, res) => {
     const {
       order_id,
       amount,
-      currency,
-      customer_name,
-      customer_email,
-      customer_phone,
-      return_url,
-      cancel_url,
+      currency = "LKR",
+      first_name = "",
+      last_name = "",
+      email = "",
+      contact_number = "",
+      address_line_one = "",
     } = req.body;
 
     if (!order_id || !amount) {
-      return res.status(400).send("Missing required fields");
+      return res.status(400).send("Missing required fields.");
     }
 
-    const formattedAmount = Number(amount).toFixed(2);
-    const signature = generateSignature(order_id, formattedAmount);
+    const encrypted = encryptPayment(`${order_id}|${amount}`);
 
-    // WebXPay staging form
-    const htmlForm = `
-      <form id="wpx_redirect" action="https://stagingxpay.info/index.php?route=checkout/billing" method="POST">
-        <input type="hidden" name="merchant_id" value="${MERCHANT_ID}">
-        <input type="hidden" name="order_id" value="${order_id}">
-        <input type="hidden" name="amount" value="${formattedAmount}">
-        <input type="hidden" name="currency" value="${currency}">
-        <input type="hidden" name="customer_name" value="${customer_name}">
-        <input type="hidden" name="customer_email" value="${customer_email}">
-        <input type="hidden" name="customer_phone" value="${customer_phone}">
-        <input type="hidden" name="return_url" value="${return_url}">
-        <input type="hidden" name="cancel_url" value="${cancel_url}">
-        <input type="hidden" name="signature" value="${signature}">
-      </form>
+    const html = `
+      <html>
+      <body onload="document.forms[0].submit();">
+        <form action="https://stagingxpay.info/index.php?route=checkout/billing" method="POST">
+          <input type="hidden" name="merchant_id" value="${MERCHANT_ID}">
+          <input type="hidden" name="payment" value="${encrypted}">
+          <input type="hidden" name="secret_key" value="${SECRET_KEY}">
+          <input type="hidden" name="enc_method" value="JCs3J+6oSz4V0LgE0zi/Bg==">
 
-      <script>
-        document.getElementById('wpx_redirect').submit();
-      </script>
+          <input type="hidden" name="first_name" value="${first_name}">
+          <input type="hidden" name="last_name" value="${last_name}">
+          <input type="hidden" name="email" value="${email}">
+          <input type="hidden" name="contact_number" value="${contact_number}">
+          <input type="hidden" name="address_line_one" value="${address_line_one}">
+          <input type="hidden" name="process_currency" value="${currency}">
+          <input type="hidden" name="return_url" value="https://alexcruz122.github.io/redtrexpaynow/">
+        </form>
+      </body>
+      </html>
     `;
 
     res.setHeader("Content-Type", "text/html");
-    res.send(htmlForm);
+    res.send(html);
+
   } catch (err) {
-    console.log(err);
-    res.status(500).send("Internal Server Error");
+    console.error("SERVER ERROR:", err);
+    res.status(500).send("Internal Server Error: " + err.message);
   }
 });
 
-const PORT = process.env.PORT || 9000;
-app.listen(PORT, () => console.log("Server running on port " + PORT));
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`Server running on ${PORT}`));
