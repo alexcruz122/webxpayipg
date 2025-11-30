@@ -10,14 +10,14 @@ app.use(cors());
 
 // STAGING Credentials
 const MERCHANT_ID = "628246969186";
-const SECRET_KEY = "ba43d0a7-5a97-4b65-8d0c-485734c4f07e";
+const SECRET_KEY = "bd5dad56-0dbe-45c7-a21c-2aa42cc58206";
 
 const PUBLIC_KEY = `
 -----BEGIN PUBLIC KEY-----
-MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDla3BZjh19LvuG+qYOF3gpcqCM
-swXfkkNJ2zwxyenNn5hGgfN0cu3dXl9jg0gkUM/p9tNCQ6k9ULLm33SGi8Vo15k4
-WI2uT9R0sBbV/U4Z3qB8RiTN0mG3qfBnl088iS3SIUcAWb+Y9SnW8N3PUTZTss13
-sZx1THY1BzCnnBdHPwIDAQAB
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCyyQu5ZankdrZoeVDWoeYy5Sdj
+6LTKVDQqLYMFb2jP5+KOD4zkORh9N0S9gkc2emjDK5qNLMo7NXP/gjsGzArh3M28
+7hSBG757C2eFd7fxkPYBqB7aQB60ISqQ1fi8DyVn15fNwXRsU34L83gD3UwdJcaV
+v/4NWsY+ZMvczkz+fwIDAQAB
 -----END PUBLIC KEY-----
 `;
 
@@ -54,7 +54,7 @@ app.post("/create-payment", (req, res) => {
     const html = `
       <html>
       <body onload="document.forms[0].submit();">
-        <form action="https://webxpay.com/index.php?route=checkout/billing" method="POST">
+        <form action="https://stagingxpay.info/index.php?route=checkout/billing" method="POST">
           <input type="hidden" name="merchant_id" value="${MERCHANT_ID}">
           <input type="hidden" name="payment" value="${encrypted}">
           <input type="hidden" name="secret_key" value="${SECRET_KEY}">
