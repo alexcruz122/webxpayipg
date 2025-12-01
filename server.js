@@ -66,7 +66,7 @@ app.post("/create-payment", (req, res) => {
           <input type="hidden" name="contact_number" value="${contact_number}">
           <input type="hidden" name="address_line_one" value="${address_line_one}">
           <input type="hidden" name="process_currency" value="${currency}">
-          <input type="hidden" name="return_url" value="https://alexcruz122.github.io/redtrexpaynow/">
+          <input type="hidden" name="return_url" value="https://www.redtrex.site">
         </form>
       </body>
       </html>
