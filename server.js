@@ -5,9 +5,10 @@ import cors from "cors";
 const app = express();
 
 // ---------------------------
-// Middleware
+// Middleware (REQUIRED)
 // ---------------------------
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // 🔴 REQUIRED for WebXPay POST
 app.use(cors());
 
 // ---------------------------
@@ -71,7 +72,7 @@ app.post("/create-payment", (req, res) => {
     return res.status(400).send("Missing order_id or amount");
   }
 
-  // Encrypt: order_id|amount
+  // Encrypt order_id|amount
   const encrypted = encryptPayment(`${order_id}|${amount}`);
 
   const html = `
@@ -94,11 +95,11 @@ app.post("/create-payment", (req, res) => {
       <input type="hidden" name="address_line_one" value="${address_line_one}">
       <input type="hidden" name="process_currency" value="${currency}">
 
-      <!-- ✅ CORRECT RETURN URL (frontend only) -->
+      <!-- 🔴 MUST point to BACKEND -->
       <input
         type="hidden"
         name="return_url"
-        value="https://www.redtrex.store/payment-success">
+        value="https://webxpayipg.onrender.com/payment-success">
     </form>
   </body>
 </html>
@@ -106,6 +107,28 @@ app.post("/create-payment", (req, res) => {
 
   res.setHeader("Content-Type", "text/html");
   res.send(html);
+});
+
+// ---------------------------
+// WebXPay return / callback
+// ---------------------------
+app.all("/payment-success", (req, res) => {
+  console.log("✅ WebXPay callback received");
+
+  const data = req.method === "POST" ? req.body : req.query;
+
+  const order_id = data.order_id || "UNKNOWN";
+  const amount = data.amount || "0";
+  const status = data.status || "UNKNOWN";
+
+  // 🔁 Redirect to frontend
+  res.redirect(
+    `https://www.redtrex.store/payment-success?order_id=${encodeURIComponent(
+      order_id
+    )}&amount=${encodeURIComponent(amount)}&status=${encodeURIComponent(
+      status
+    )}`
+  );
 });
 
 // ---------------------------
