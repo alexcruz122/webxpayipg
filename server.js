@@ -70,7 +70,7 @@ app.post("/create-payment", (req, res) => {
   const html = `
   <html>
     <body onload="document.forms[0].submit()">
-      <form action="https://stagingxpay.info/index.php?route=checkout/billing" method="POST">
+      <form action="https://webxpay.com/index.php?route=checkout/billing" method="POST">
         <input type="hidden" name="merchant_id" value="${MERCHANT_ID}">
         <input type="hidden" name="payment" value="${encrypted}">
         <input type="hidden" name="secret_key" value="${SECRET_KEY}">
