@@ -8,17 +8,17 @@ const app = express();
 // Middleware
 // ---------------------------
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true })); // <-- needed for form POST
 app.use(cors());
 
 // ---------------------------
-// LIVE ENV VARIABLES (set in Render)
+// LIVE ENV VARIABLES (set these in Render)
 // MERCHANT_ID
 // SECRET_KEY
 // ---------------------------
-const { MERCHANT_ID, SECRET_KEY } = process.env;
+const { MERCHANT_ID, SECRET_KEY, RETURN_URL } = process.env;
 
-// Public key (live)
+// Public key (server-side safe)
 const WEBXPAY_PUBLIC_KEY = `
 -----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDla3BZjh19LvuG+qYOF3gpcqCM
@@ -28,7 +28,7 @@ sZx1THY1BzCnnBdHPwIDAQAB
 -----END PUBLIC KEY-----
 `;
 
-if (!MERCHANT_ID || !SECRET_KEY) {
+if (!MERCHANT_ID || !SECRET_KEY || !RETURN_URL) {
   console.error("❌ Missing LIVE environment variables");
   process.exit(1);
 }
@@ -68,8 +68,7 @@ app.post("/create-payment", (req, res) => {
     address_line_one = "",
   } = req.body;
 
-  if (!order_id || !amount)
-    return res.status(400).send("Missing order_id or amount");
+  if (!order_id || !amount) return res.status(400).send("Missing order_id or amount");
 
   const encrypted = encryptPayment(`${order_id}|${amount}`);
 
@@ -88,7 +87,7 @@ app.post("/create-payment", (req, res) => {
         <input type="hidden" name="contact_number" value="${contact_number}">
         <input type="hidden" name="address_line_one" value="${address_line_one}">
         <input type="hidden" name="process_currency" value="${currency}">
-        <input type="hidden" name="return_url" value="https://webxpayipg.onrender.com/payment-success">
+        <input type="hidden" name="return_url" value="${RETURN_URL}">
       </form>
     </body>
   </html>
@@ -99,30 +98,24 @@ app.post("/create-payment", (req, res) => {
 });
 
 // ---------------------------
-// Payment success endpoint (GET, POST, OPTIONS)
+// Webxpay callback route (POST & GET)
 // ---------------------------
-app.options("/payment-success", (req, res) => {
-  res.sendStatus(200);
-});
-
 app.all("/payment-success", (req, res) => {
-  const { order_id, amount } = req.body || req.query;
+  // WebXpay might send POST or GET
+  const data = req.method === "POST" ? req.body : req.query;
+  const { order_id, amount } = data;
 
   if (!order_id || !amount) {
     console.warn("⚠️ Payment callback missing order_id or amount");
-    return res.redirect("https://www.redtrex.store/payment-success");
+    return res.redirect(`${RETURN_URL}`);
   }
 
   const date = new Date().toLocaleDateString();
   const method = "WebXPay";
 
-  // Redirect to your GitHub Pages success page with order info
+  // Redirect to frontend success page with order info
   res.redirect(
-    `https://www.redtrex.store/payment-success?order_id=${encodeURIComponent(
-      order_id
-    )}&amount=${encodeURIComponent(amount)}&date=${encodeURIComponent(
-      date
-    )}&method=${encodeURIComponent(method)}`
+    `${RETURN_URL}?order_id=${encodeURIComponent(order_id)}&amount=${encodeURIComponent(amount)}&date=${encodeURIComponent(date)}&method=${encodeURIComponent(method)}`
   );
 });
 
