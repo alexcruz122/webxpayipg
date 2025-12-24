@@ -6,20 +6,14 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-/**
- * LIVE ENV VARIABLES (set these in Render)
- * MERCHANT_ID
- * SECRET_KEY
- * RETURN_URL
- */
+// ---------------------------
+// LIVE ENV VARIABLES (set these in Render)
+// MERCHANT_ID
+// SECRET_KEY
+// ---------------------------
+const { MERCHANT_ID, SECRET_KEY } = process.env;
 
-const {
-  MERCHANT_ID,
-  SECRET_KEY,
-  RETURN_URL,
-} = process.env;
-
-// Hardcoded PUBLIC KEY from you (safe server-side)
+// Public key (server-side safe)
 const WEBXPAY_PUBLIC_KEY = `
 -----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDla3BZjh19LvuG+qYOF3gpcqCM
@@ -29,11 +23,14 @@ sZx1THY1BzCnnBdHPwIDAQAB
 -----END PUBLIC KEY-----
 `;
 
-if (!MERCHANT_ID || !SECRET_KEY || !RETURN_URL) {
+if (!MERCHANT_ID || !SECRET_KEY) {
   console.error("❌ Missing LIVE environment variables");
   process.exit(1);
 }
 
+// ---------------------------
+// Helper: encrypt order_id|amount
+// ---------------------------
 function encryptPayment(plain) {
   return crypto.publicEncrypt(
     {
@@ -44,10 +41,16 @@ function encryptPayment(plain) {
   ).toString("base64");
 }
 
+// ---------------------------
+// Test endpoint
+// ---------------------------
 app.get("/", (req, res) => {
   res.send("Webxpay LIVE backend running");
 });
 
+// ---------------------------
+// Create payment endpoint
+// ---------------------------
 app.post("/create-payment", (req, res) => {
   const {
     order_id,
@@ -60,9 +63,7 @@ app.post("/create-payment", (req, res) => {
     address_line_one = "",
   } = req.body;
 
-  if (!order_id || !amount) {
-    return res.status(400).send("Missing order_id or amount");
-  }
+  if (!order_id || !amount) return res.status(400).send("Missing order_id or amount");
 
   const encrypted = encryptPayment(`${order_id}|${amount}`);
 
@@ -81,7 +82,7 @@ app.post("/create-payment", (req, res) => {
         <input type="hidden" name="contact_number" value="${contact_number}">
         <input type="hidden" name="address_line_one" value="${address_line_one}">
         <input type="hidden" name="process_currency" value="${currency}">
-        <input type="hidden" name="return_url" value="${RETURN_URL}">
+        <input type="hidden" name="return_url" value="https://webxpayipg.onrender.com/payment-success">
       </form>
     </body>
   </html>
@@ -91,5 +92,20 @@ app.post("/create-payment", (req, res) => {
   res.send(html);
 });
 
+// ---------------------------
+// Webxpay callback route
+// ---------------------------
+app.post("/payment-success", (req, res) => {
+  console.log("✅ Payment callback received:", req.body);
+
+  // Optional: verify Webxpay signature here
+
+  // Redirect user to your GitHub Pages success page
+  res.redirect("https://redtrex.store/payment-success.html");
+});
+
+// ---------------------------
+// Start server
+// ---------------------------
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`🚀 LIVE server running on ${PORT}`));
