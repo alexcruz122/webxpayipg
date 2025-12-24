@@ -8,17 +8,17 @@ const app = express();
 // Middleware
 // ---------------------------
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // For Webxpay POST
+app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 
 // ---------------------------
-// LIVE ENV VARIABLES (set these in Render)
+// LIVE ENV VARIABLES (set in Render)
 // MERCHANT_ID
 // SECRET_KEY
 // ---------------------------
 const { MERCHANT_ID, SECRET_KEY } = process.env;
 
-// Public key (server-side safe)
+// Public key (live)
 const WEBXPAY_PUBLIC_KEY = `
 -----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDla3BZjh19LvuG+qYOF3gpcqCM
@@ -68,7 +68,8 @@ app.post("/create-payment", (req, res) => {
     address_line_one = "",
   } = req.body;
 
-  if (!order_id || !amount) return res.status(400).send("Missing order_id or amount");
+  if (!order_id || !amount)
+    return res.status(400).send("Missing order_id or amount");
 
   const encrypted = encryptPayment(`${order_id}|${amount}`);
 
@@ -98,8 +99,12 @@ app.post("/create-payment", (req, res) => {
 });
 
 // ---------------------------
-// Payment success callback (GET & POST)
+// Payment success endpoint (GET, POST, OPTIONS)
 // ---------------------------
+app.options("/payment-success", (req, res) => {
+  res.sendStatus(200);
+});
+
 app.all("/payment-success", (req, res) => {
   const { order_id, amount } = req.body || req.query;
 
@@ -111,9 +116,13 @@ app.all("/payment-success", (req, res) => {
   const date = new Date().toLocaleDateString();
   const method = "WebXPay";
 
-  // Redirect to your GitHub Pages success page with query params
+  // Redirect to your GitHub Pages success page with order info
   res.redirect(
-    `https://www.redtrex.store/payment-success?order_id=${encodeURIComponent(order_id)}&amount=${encodeURIComponent(amount)}&date=${encodeURIComponent(date)}&method=${encodeURIComponent(method)}`
+    `https://www.redtrex.store/payment-success?order_id=${encodeURIComponent(
+      order_id
+    )}&amount=${encodeURIComponent(amount)}&date=${encodeURIComponent(
+      date
+    )}&method=${encodeURIComponent(method)}`
   );
 });
 
