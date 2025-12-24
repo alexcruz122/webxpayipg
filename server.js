@@ -5,14 +5,14 @@ import cors from "cors";
 const app = express();
 
 // ---------------------------
-// Middleware (REQUIRED)
+// Middleware
 // ---------------------------
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // 🔴 REQUIRED for WebXPay POST
+app.use(express.urlencoded({ extended: true })); // Required for WebXPay POST
 app.use(cors());
 
 // ---------------------------
-// ENV VARIABLES (Render)
+// ENV VARIABLES
 // ---------------------------
 const { MERCHANT_ID, SECRET_KEY } = process.env;
 
@@ -95,7 +95,7 @@ app.post("/create-payment", (req, res) => {
       <input type="hidden" name="address_line_one" value="${address_line_one}">
       <input type="hidden" name="process_currency" value="${currency}">
 
-      <!-- 🔴 MUST point to BACKEND -->
+      <!-- Must point to backend callback -->
       <input
         type="hidden"
         name="return_url"
@@ -117,18 +117,33 @@ app.all("/payment-success", (req, res) => {
 
   const data = req.method === "POST" ? req.body : req.query;
 
+  // Extract WebXPay response fields
   const order_id = data.order_id || "UNKNOWN";
   const amount = data.amount || "0";
-  const status = data.status || "UNKNOWN";
+  const txn_id = data.transaction_id || data.order_reference_number || order_id;
+  const status = data.status || "SUCCESS";
 
-  // 🔁 Redirect to frontend
-  res.redirect(
-    `https://www.redtrex.store/payment-success?order_id=${encodeURIComponent(
-      order_id
-    )}&amount=${encodeURIComponent(amount)}&status=${encodeURIComponent(
-      status
-    )}`
-  );
+  // Map payment gateway IDs to human-readable method
+  const methodMap = {
+    "1": "Sampath Bank",
+    "2": "EzCash",
+    "3": "Mcash",
+    "4": "Amex",
+    "5": "Sampath Vishwa",
+  };
+  const method = methodMap[data.payment_gateway_id] || "WebXPay";
+
+  // Transaction date
+  const date = data.date_time_transaction || new Date().toLocaleString();
+
+  // Redirect to frontend with all details
+  const redirectUrl = `https://www.redtrex.store/payment-success?order_id=${encodeURIComponent(
+    txn_id
+  )}&amount=${encodeURIComponent(amount)}&status=${encodeURIComponent(
+    status
+  )}&method=${encodeURIComponent(method)}&date=${encodeURIComponent(date)}`;
+
+  res.redirect(redirectUrl);
 });
 
 // ---------------------------
