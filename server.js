@@ -3,7 +3,12 @@ import crypto from "crypto";
 import cors from "cors";
 
 const app = express();
+
+// ---------------------------
+// Middleware
+// ---------------------------
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // For Webxpay POST
 app.use(cors());
 
 // ---------------------------
@@ -93,15 +98,23 @@ app.post("/create-payment", (req, res) => {
 });
 
 // ---------------------------
-// Webxpay callback route
+// Payment success callback (GET & POST)
 // ---------------------------
-app.post("/payment-success", (req, res) => {
-  console.log("✅ Payment callback received:", req.body);
+app.all("/payment-success", (req, res) => {
+  const { order_id, amount } = req.body || req.query;
 
-  // Optional: verify Webxpay signature here
+  if (!order_id || !amount) {
+    console.warn("⚠️ Payment callback missing order_id or amount");
+    return res.redirect("https://www.redtrex.store/payment-success");
+  }
 
-  // Redirect user to your GitHub Pages success page
-  res.redirect("https://redtrex.store/payment-success.html");
+  const date = new Date().toLocaleDateString();
+  const method = "WebXPay";
+
+  // Redirect to your GitHub Pages success page with query params
+  res.redirect(
+    `https://www.redtrex.store/payment-success?order_id=${encodeURIComponent(order_id)}&amount=${encodeURIComponent(amount)}&date=${encodeURIComponent(date)}&method=${encodeURIComponent(method)}`
+  );
 });
 
 // ---------------------------
