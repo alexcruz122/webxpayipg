@@ -8,17 +8,21 @@ const app = express();
 // Middleware
 // ---------------------------
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // <-- needed for form POST
 app.use(cors());
 
 // ---------------------------
-// LIVE ENV VARIABLES (set these in Render)
-// MERCHANT_ID
-// SECRET_KEY
+// ENV VARIABLES (Render)
 // ---------------------------
-const { MERCHANT_ID, SECRET_KEY, RETURN_URL } = process.env;
+const { MERCHANT_ID, SECRET_KEY } = process.env;
 
-// Public key (server-side safe)
+if (!MERCHANT_ID || !SECRET_KEY) {
+  console.error("❌ Missing MERCHANT_ID or SECRET_KEY");
+  process.exit(1);
+}
+
+// ---------------------------
+// WebXPay LIVE Public Key
+// ---------------------------
 const WEBXPAY_PUBLIC_KEY = `
 -----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDla3BZjh19LvuG+qYOF3gpcqCM
@@ -28,13 +32,8 @@ sZx1THY1BzCnnBdHPwIDAQAB
 -----END PUBLIC KEY-----
 `;
 
-if (!MERCHANT_ID || !SECRET_KEY || !RETURN_URL) {
-  console.error("❌ Missing LIVE environment variables");
-  process.exit(1);
-}
-
 // ---------------------------
-// Helper: encrypt order_id|amount
+// Encrypt helper
 // ---------------------------
 function encryptPayment(plain) {
   return crypto.publicEncrypt(
@@ -47,14 +46,14 @@ function encryptPayment(plain) {
 }
 
 // ---------------------------
-// Test endpoint
+// Health check
 // ---------------------------
 app.get("/", (req, res) => {
-  res.send("Webxpay LIVE backend running");
+  res.send("✅ WebXPay LIVE backend running");
 });
 
 // ---------------------------
-// Create payment endpoint
+// Create payment
 // ---------------------------
 app.post("/create-payment", (req, res) => {
   const {
@@ -68,59 +67,51 @@ app.post("/create-payment", (req, res) => {
     address_line_one = "",
   } = req.body;
 
-  if (!order_id || !amount) return res.status(400).send("Missing order_id or amount");
+  if (!order_id || !amount) {
+    return res.status(400).send("Missing order_id or amount");
+  }
 
+  // Encrypt: order_id|amount
   const encrypted = encryptPayment(`${order_id}|${amount}`);
 
   const html = `
-  <html>
-    <body onload="document.forms[0].submit()">
-      <form action="https://webxpay.com/index.php?route=checkout/billing" method="POST">
-        <input type="hidden" name="merchant_id" value="${MERCHANT_ID}">
-        <input type="hidden" name="payment" value="${encrypted}">
-        <input type="hidden" name="secret_key" value="${SECRET_KEY}">
-        <input type="hidden" name="enc_method" value="JCs3J+6oSz4V0LgE0zi/Bg==">
+<!DOCTYPE html>
+<html>
+  <body onload="document.forms[0].submit()">
+    <form
+      action="https://www.webxpay.com/index.php?route=checkout/billing"
+      method="POST"
+    >
+      <input type="hidden" name="merchant_id" value="${MERCHANT_ID}">
+      <input type="hidden" name="payment" value="${encrypted}">
+      <input type="hidden" name="secret_key" value="${SECRET_KEY}">
+      <input type="hidden" name="enc_method" value="JCs3J+6oSz4V0LgE0zi/Bg==">
 
-        <input type="hidden" name="first_name" value="${first_name}">
-        <input type="hidden" name="last_name" value="${last_name}">
-        <input type="hidden" name="email" value="${email}">
-        <input type="hidden" name="contact_number" value="${contact_number}">
-        <input type="hidden" name="address_line_one" value="${address_line_one}">
-        <input type="hidden" name="process_currency" value="${currency}">
-        <input type="hidden" name="return_url" value="${RETURN_URL}">
-      </form>
-    </body>
-  </html>
-  `;
+      <input type="hidden" name="first_name" value="${first_name}">
+      <input type="hidden" name="last_name" value="${last_name}">
+      <input type="hidden" name="email" value="${email}">
+      <input type="hidden" name="contact_number" value="${contact_number}">
+      <input type="hidden" name="address_line_one" value="${address_line_one}">
+      <input type="hidden" name="process_currency" value="${currency}">
+
+      <!-- ✅ CORRECT RETURN URL (frontend only) -->
+      <input
+        type="hidden"
+        name="return_url"
+        value="https://www.redtrex.store/payment-success">
+    </form>
+  </body>
+</html>
+`;
 
   res.setHeader("Content-Type", "text/html");
   res.send(html);
 });
 
 // ---------------------------
-// Webxpay callback route (POST & GET)
-// ---------------------------
-app.all("/payment-success", (req, res) => {
-  // WebXpay might send POST or GET
-  const data = req.method === "POST" ? req.body : req.query;
-  const { order_id, amount } = data;
-
-  if (!order_id || !amount) {
-    console.warn("⚠️ Payment callback missing order_id or amount");
-    return res.redirect(`${RETURN_URL}`);
-  }
-
-  const date = new Date().toLocaleDateString();
-  const method = "WebXPay";
-
-  // Redirect to frontend success page with order info
-  res.redirect(
-    `${RETURN_URL}?order_id=${encodeURIComponent(order_id)}&amount=${encodeURIComponent(amount)}&date=${encodeURIComponent(date)}&method=${encodeURIComponent(method)}`
-  );
-});
-
-// ---------------------------
 // Start server
 // ---------------------------
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 LIVE server running on ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 WebXPay LIVE server running on port ${PORT}`);
+});
